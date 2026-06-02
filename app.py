@@ -24,6 +24,7 @@ from components.viz_gantt import (
 from components.viz_turnos import render_turnos
 from components.viz_escenarios import render_escenarios
 from components.viz_services import render_services_table
+from components.viz_asignacion import render_asignacion
 
 
 # =============================================================================
@@ -235,12 +236,13 @@ with st.container():
 # Tabs principales
 # =============================================================================
 
-tab_marey, tab_map, tab_kpis, tab_rot, tab_turnos, tab_est, tab_esc, tab_svc = st.tabs([
+tab_marey, tab_map, tab_kpis, tab_rot, tab_turnos, tab_asig, tab_est, tab_esc, tab_svc = st.tabs([
     "📈 Diagrama de Marey",
     "🗺️ Mapa de la red",
     "📊 Indicadores",
     "🚂 Rotación de trenes",
     "👷 Turnos teóricos",
+    "🧑‍✈️ Asignación de personal",
     "🏢 Ocupación de estaciones",
     "🔬 Escenarios",
     "📋 Catálogo de servicios",
@@ -521,6 +523,21 @@ with tab_rot:
         "+ 1 Dom."
     )
     render_km_por_tren(services_df, passes_df)
+
+
+# -----------------------------------------------------------------------------
+# Tab 5b: Asignación de personal a turnos
+# -----------------------------------------------------------------------------
+
+with tab_asig:
+    st.markdown("### Asignación de turnos al personal disponible")
+    st.caption(
+        "Pestaña de **programación** (vs. *Turnos teóricos*, que es de "
+        "**dimensionamiento**). Aquí se asigna cada turno a un maquinista "
+        "y un ayudante concretos, validando reposo 10h, régimen 6x1, "
+        "disponibilidad y roles desacoplados (Opción B)."
+    )
+    render_asignacion(services_df)
 
 
 # -----------------------------------------------------------------------------

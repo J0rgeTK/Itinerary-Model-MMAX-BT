@@ -15,6 +15,8 @@ Construido con **Streamlit + Plotly + Folium**.
 | 🗺️ **Mapa de la red** | Mapa geográfico (Folium) o esquemático (Plotly, sin internet) con estaciones y tramos. |
 | 📊 **Indicadores** | Tarjetas KPI: servicios, trenes, pico simultáneo, headway, distribución por franja. |
 | 🚂 **Rotación de trenes** | Gantt con la secuencia de servicios que opera cada SFE. |
+| 👷 **Turnos teóricos** | Dimensionamiento: cuántos turnos abstractos se necesitan respetando jornada y conducción. |
+| 🧑‍✈️ **Asignación de personal** | **Programación**: asigna cada turno a maquinistas y ayudantes concretos, validando **reposo 10h**, **6x1**, ausencias y sin certificación por equipo. |
 | 🏢 **Ocupación de estaciones** | Gantt de ocupación de cada estación crítica. |
 | 📋 **Catálogo de servicios** | Tabla filtrable con export a CSV. |
 
@@ -73,7 +75,78 @@ operacionales.
 
 ---
 
-## 🗄️ Base de datos — formato Excel
+## 🧑‍✈️ Asignación de personal (programación de turnos)
+
+La pestaña **🧑‍✈️ Asignación de personal** es la pieza de **programación**
+a gran escala, complementaria a **👷 Turnos teóricos** (que es solo
+**dimensionamiento**). Permite:
+
+1. **Generar un roster simulado** de N maquinistas + M ayudantes (por
+   defecto 50+50, regenerable).
+2. **Marcar ausencias puntuales** por fecha y motivo (licencia médica,
+   vacaciones, capacitación, etc.) — y simular licencias repentinas con
+   un botón rápido *"¿qué pasa si alguien se enferma?"*.
+3. **Ejecutar el motor de asignación** que, para cada día seleccionado:
+   - Construye los turnos abstractos del itinerario del día.
+   - Asigna cada turno a un maquinista y un ayudante **desacoplados**
+     (Opción B): un turno puede tener MQ-007 + AY-031, y al día
+     siguiente combinaciones distintas.
+   - Valida **reposo 10h** entre fin del último turno e inicio del nuevo.
+   - Valida el **régimen 6x1** (1 día libre por semana, sin 7 días
+     corridos).
+   - **Si un turno no puede cubrirse respetando las reglas, queda
+     descubierto y se reporta** (no se viola la normativa para cubrirlo).
+4. **Visualizar el resultado**:
+   - Gantt por persona con la jornada del día.
+   - Tabla detallada de asignaciones.
+   - Turnos descubiertos con el motivo exacto del rechazo.
+   - Distribución de carga y horas trabajadas (verifica que la
+     asignación sea uniforme).
+   - KPIs de cobertura.
+
+### Decisiones de diseño
+
+- **Roles desacoplados (Opción B)**: maquinistas y ayudantes se asignan
+  por separado. Esto modela la realidad donde el ayudante no tiene
+  límite de conducción, solo de jornada.
+- **Sin restricción de certificación**: cualquier persona opera cualquier
+  equipo (SFE / SFB / UT). Esta hipótesis se ajustará cuando exista la
+  planilla real con habilitaciones.
+- **Algoritmo greedy con fairness**: para cada turno, el motor elige
+  al candidato con **mayor tiempo desde su última asignación** dentro
+  de los que pasan la validación. Esto distribuye la carga uniformemente
+  y minimiza futuras violaciones de reposo.
+- **Estado persistente**: el historial de cada persona (último turno,
+  racha de días trabajados) se mantiene entre llamadas, lo que permite
+  planificar día tras día y validar 10h entre jornadas consecutivas.
+
+### Hallazgos típicos
+
+Al ejecutar el motor con el itinerario vigente, es habitual detectar
+que **algunos turnos vespertinos no pueden cubrirse** porque las
+parejas que podrían tomarlos terminaron su turno matinal a las
+10:30-11:30, dejando apenas 8-9h hasta un nuevo turno a las 19:00.
+Esta es la clase de violación que la normativa exige prevenir y que el
+modelo anterior no detectaba.
+
+### Migración futura a un solver formal
+
+El motor greedy es eficiente y extensible, pero al agregar más
+restricciones (antigüedad, equilibrio anual de horas, preferencias,
+HE estructural, etc.) conviene migrar a un solver de programación
+entera (PuLP / OR-Tools). El modelo `Persona` y las funciones de
+validación están diseñadas para ser reemplazables sin reescribir la
+UI.
+
+### Tests
+
+`test_asignacion.py` valida el motor contra 7 escenarios clave:
+reposo 10h, régimen 6x1, ausencias, descubiertos, fairness y
+cruce de medianoche. Ejecutar con `python test_asignacion.py`.
+
+---
+
+
 
 **Toda la base de datos está en un único archivo Excel editable:**
 `data/biotren_datos.xlsx`
@@ -127,7 +200,10 @@ biotren_app/
 │   ├── viz_map.py             # Mapa (Folium + Plotly)
 │   ├── viz_kpis.py            # Dashboard de KPIs
 │   ├── viz_gantt.py           # Gantts (trenes + estaciones)
-│   └── viz_services.py        # Tabla de servicios
+│   ├── viz_services.py        # Tabla de servicios
+│   ├── viz_turnos.py          # Turnos teóricos (dimensionamiento)
+│   ├── viz_asignacion.py      # Asignación de personal (programación)
+│   └── viz_escenarios.py      # Generador de escenarios
 │
 └── data/
     ├── biotren_datos.xlsx     # ★ BASE DE DATOS PRINCIPAL (editable)
